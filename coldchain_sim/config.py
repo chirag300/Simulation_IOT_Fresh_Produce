@@ -18,6 +18,9 @@ class SimParams:
 DEFAULT_SKUS = {
     "strawberries": SKUParams(L_ref_hours=72, Q10=2.4),
     "romaine":      SKUParams(L_ref_hours=168, Q10=2.0),
+        "blueberries":  SKUParams(L_ref_hours=120, Q10=2.2),
+    "spinach":      SKUParams(L_ref_hours=96, Q10=2.3),
+
 }
 
 SIM = SimParams()
