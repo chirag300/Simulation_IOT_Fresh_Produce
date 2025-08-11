@@ -1,0 +1,23 @@
+from dataclasses import dataclass
+
+@dataclass
+class SKUParams:
+    L_ref_hours: float
+    T_ref: float = 4.0
+    Q10: float = 2.0
+
+@dataclass
+class SimParams:
+    service_minutes: int = 8
+    setpoint_c: float = 4.0
+    cool_rate_per_min: float = 0.15
+    temp_spike_on_open: float = 1.8
+    temp_drift_ambient: float = 0.02
+    max_minutes: int = 8*60
+
+DEFAULT_SKUS = {
+    "strawberries": SKUParams(L_ref_hours=72, Q10=2.4),
+    "romaine":      SKUParams(L_ref_hours=168, Q10=2.0),
+}
+
+SIM = SimParams()
