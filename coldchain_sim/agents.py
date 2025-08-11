@@ -2,11 +2,8 @@ from mesa import Agent
 import math
 from .shelf_life import q10_degradation_per_min
 
-
 class DistributionCenter(Agent):
-    def step(self):
-        pass
-
+    def step(self): pass
 
 class Store(Agent):
     def __init__(self, uid, model, node_id, sku_demands, service_minutes):
@@ -15,23 +12,21 @@ class Store(Agent):
         self.sku_demands = dict(sku_demands)
         self.service_minutes = service_minutes
         self.served = False
-
-    def step(self):
-        pass
-
+    def step(self): pass
 
 class Vehicle(Agent):
     def __init__(self, uid, model, route, capacity_by_sku, sim_p, sku_params):
         super().__init__(uid, model)
-        self.route = route[:]
+        self.route = route[:]                 # [0, i1, ..., 0]
         self.next_ix = 1
         self.pos = self.route[0]
         self.remaining_travel = 0
         self.inventory = dict(capacity_by_sku)
+        self.sim_p = sim_p
         self.setpoint = sim_p.setpoint_c
         self.trailer_temp = sim_p.setpoint_c
-        self.sim_p = sim_p
         self.ambient = lambda t: 18 + 6*math.sin((t/60.0-6)/24*2*math.pi)
+
         self.service_timer = 0
         self.drive_min = 0
         self.service_min = 0
@@ -41,10 +36,11 @@ class Vehicle(Agent):
         self.life_remaining_min = {k: v.L_ref_hours*60 for k, v in sku_params.items()}
 
     def step(self):
-        if self.completed:
-            return
+        if self.completed: return
+
         # cooling toward setpoint
         self.trailer_temp += self.sim_p.cool_rate_per_min * (self.setpoint - self.trailer_temp)
+
         if self.remaining_travel > 0:
             self.remaining_travel -= 1
             self.drive_min += 1
@@ -67,10 +63,9 @@ class Vehicle(Agent):
                         self.pos = nxt
                         self.next_ix += 1
 
-        # degrade shelf life
+        # shelf-life decay for carried items
         for sku, qty in self.inventory.items():
-            if qty <= 0:
-                continue
+            if qty <= 0: continue
             p = self.sku_params[sku]
             d = q10_degradation_per_min(p.L_ref_hours, self.trailer_temp, p.T_ref, p.Q10)
             self.life_remaining_min[sku] = max(0.0, self.life_remaining_min[sku] - d)
