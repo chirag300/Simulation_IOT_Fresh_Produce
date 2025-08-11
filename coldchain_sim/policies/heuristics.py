@@ -1,4 +1,3 @@
-import networkx as nx
 from .base import RoutePolicy
 
 class NearestNeighborPolicy(RoutePolicy):
@@ -7,7 +6,7 @@ class NearestNeighborPolicy(RoutePolicy):
         route = [depot]
         cur = depot
         while unvisited:
-            nxt = min(unvisited, key= j: Gur][j]["time"])
+            nxt = min(unvisited, key=lambda j: G[cur][j]["time"])
             route.append(nxt)
             unvisited.remove(nxt)
             cur = nxt
