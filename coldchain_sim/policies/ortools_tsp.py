@@ -1,85 +1,65 @@
 """
 Route policy using OR-Tools to solve a traveling salesman problem.
 
-This policy constructs a route that starts and ends at the depot and visits
-each customer exactly once, minimizing total travel time.  If OR-Tools is
-not installed or fails to find a solution within the time limit, it falls
-back to the nearest-neighbor heuristic.
+If OR-Tools is unavailable or no solution is found within the time limit,
+falls back to NearestNeighborPolicy.
 """
 from .base import RoutePolicy
-
+from .heuristics import NearestNeighborPolicy, path_time
 
 class ORToolsTSPPolicy(RoutePolicy):
-    """
-    Route policy that solves a TSP on the given graph using OR-Tools.
-    """
-
     def build_route(self, G, depot, customers):
-        """
-        Build a route using OR-Tools.  Returns a list of node IDs starting
-        at depot, visiting each customer once, and returning to the depot.
-        Falls back to NearestNeighborPolicy if OR-Tools is unavailable or no
-        solution is found within the time limit.
-        """
         try:
-            # OR-Tools is an optional dependency
             from ortools.constraint_solver import pywrapcp, routing_enums_pb2
         except Exception:
-            from .heuristics import NearestNeighborPolicy
+            print("[ORToolsTSP] OR-Tools not available; falling back to NearestNeighbor.")
             return NearestNeighborPolicy().build_route(G, depot, customers)
 
-        # Build list of nodes (depot + customers)
         nodes = [depot] + list(customers)
         n = len(nodes)
-        # Build distance matrix for OR-Tools
-        # The order in 'nodes' defines indices in the matrix.
+
+        # Distance matrix (integers)
         M = [[0] * n for _ in range(n)]
         for i, a in enumerate(nodes):
             for j, b in enumerate(nodes):
                 if i != j:
-                    # ensure integer cost
                     M[i][j] = int(G[a][b]["time"])
 
-        # Create the routing index manager and model for a single vehicle
-        manager = pywrapcp.RoutingIndexManager(n, 1, 0)  # start depot index = 0
+        manager = pywrapcp.RoutingIndexManager(n, 1, 0)
         routing = pywrapcp.RoutingModel(manager)
 
-        # Define cost callback
         def distance_callback(i, j):
             return M[manager.IndexToNode(i)][manager.IndexToNode(j)]
 
-        transit_callback_index = routing.RegisterTransitCallback(distance_callback)
-        routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+        transit_idx = routing.RegisterTransitCallback(distance_callback)
+        routing.SetArcCostEvaluatorOfAllVehicles(transit_idx)
 
-        # Set search parameters
-        search_params = pywrapcp.DefaultRoutingSearchParameters()
-        search_params.first_solution_strategy = (
-            routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-        )
-        search_params.local_search_metaheuristic = (
-            routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
-        )
-        # Limit search time to a few seconds
-        search_params.time_limit.FromSeconds(2)
+        search = pywrapcp.DefaultRoutingSearchParameters()
+        search.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+        search.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+        search.time_limit.FromSeconds(5)
 
-        # Solve the problem
-        solution = routing.SolveWithParameters(search_params)
+        solution = routing.SolveWithParameters(search)
         if solution is None:
-            # Fall back to nearest neighbor if no solution found
-            from .heuristics import NearestNeighborPolicy
+            print("[ORToolsTSP] No solution found; falling back to NearestNeighbor.")
             return NearestNeighborPolicy().build_route(G, depot, customers)
 
-        # Extract the route
-        index = routing.Start(0)
+        # Extract route in index space
+        idx = routing.Start(0)
         order = []
-        while not routing.IsEnd(index):
-            order.append(manager.IndexToNode(index))
-            index = solution.Value(routing.NextVar(index))
-        # Add final node (should be depot)
-        order.append(manager.IndexToNode(index))
-        # Map back to actual node IDs
+        while not routing.IsEnd(idx):
+            order.append(manager.IndexToNode(idx))
+            idx = solution.Value(routing.NextVar(idx))
+        order.append(manager.IndexToNode(idx))
+
+        # Map back to node ids
         route = [nodes[i] for i in order]
-        # Ensure route ends at depot
         if route[-1] != depot:
             route.append(depot)
+
+        print(f"[ORToolsTSP] used OR-Tools. route_minutes={path_time(route, G)} route={route}")
         return route
+
+    def valid_route(self, route, depot, customers):
+        return (route[0] == depot and route[-1] == depot and
+                set(route[1:-1]) == set(customers) and len(route) == len(customers) + 2)

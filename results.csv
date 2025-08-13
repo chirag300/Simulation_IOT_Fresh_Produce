@@ -1,3 +1,4 @@
-policy,time_total,life_total,deliveries,units_delivered,avg_minutes_per_unit,avg_hours_per_unit
-NearestNeighborPolicy,181,3815989.2040178147,10,570,6694.71790178564,111.57863169642732
-ORToolsTSPPolicy,181,3815989.2040178147,10,570,6694.71790178564,111.57863169642732
+policy,route_minutes,time_total,life_total,deliveries,units_delivered,avg_minutes_per_unit,avg_hours_per_unit,route
+NearestNeighborPolicy,31,111,3815991.7416139683,10,570,6694.722353708717,111.57870589514528,"[0, 3, 10, 2, 6, 8, 1, 5, 4, 7, 9, 0]"
+TwoOptPolicy,29,109,3815991.6367075695,10,570,6694.722169662403,111.57870282770672,"[0, 10, 3, 2, 6, 8, 1, 5, 4, 7, 9, 0]"
+ORToolsTSPPolicy,27,107,3815991.2821408017,10,570,6694.7215476154415,111.57869246025736,"[0, 9, 7, 4, 5, 6, 8, 1, 3, 2, 10, 0]"

@@ -1,21 +1,17 @@
 """
 Expose commonly used route policies for external import.
 
-The `base` module defines the `RoutePolicy` abstract base class.  The
-`heuristics` module provides simple heuristics such as nearest-neighbor and
-2-opt.  The `ortools_tsp` module provides a TSP-based optimization using
-OR-Tools with a fallback to the nearest-neighbor heuristic if OR-Tools is
-unavailable.  Importing these classes here makes them available as
-`coldchain_sim.policies.NearestNeighborPolicy`, etc.
+We intentionally do NOT import ORToolsTSPPolicy here to avoid forcing OR-Tools
+as an import-time dependency. Import it explicitly where needed:
+    from coldchain_sim.policies.ortools_tsp import ORToolsTSPPolicy
 """
-
 from .base import RoutePolicy
-from .heuristics import NearestNeighborPolicy, two_opt
-from .ortools_tsp import ORToolsTSPPolicy
+from .heuristics import NearestNeighborPolicy, TwoOptPolicy, path_time, two_opt
 
 __all__ = [
     "RoutePolicy",
     "NearestNeighborPolicy",
+    "TwoOptPolicy",
+    "path_time",
     "two_opt",
-    "ORToolsTSPPolicy",
 ]
