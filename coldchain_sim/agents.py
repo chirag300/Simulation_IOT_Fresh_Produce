@@ -1,6 +1,7 @@
 from mesa import Agent
 import math
 from .shelf_life import q10_degradation_per_min
+from .temps import DiurnalWithDoor
 
 class DistributionCenter(Agent):
     def step(self): pass
@@ -23,9 +24,16 @@ class Vehicle(Agent):
         self.remaining_travel = 0
         self.inventory = dict(capacity_by_sku)
         self.sim_p = sim_p
-        self.setpoint = sim_p.setpoint_c
-        self.trailer_temp = sim_p.setpoint_c
-        self.ambient = lambda t: 18 + 6*math.sin((t/60.0-6)/24*2*math.pi)
+        # Temperature model: synthetic IoT sensor capturing diurnal ambient,
+        # cooling, drift when doors are open, and random noise.  This object
+        # encapsulates all temperature dynamics and holds the current trailer
+        # temperature in its `temp` attribute.
+        self.temp_model = DiurnalWithDoor(
+            setpoint=sim_p.setpoint_c,
+            cool_rate=sim_p.cool_rate_per_min,
+            drift=sim_p.temp_drift_ambient,
+            open_spike=sim_p.temp_spike_on_open,
+        )
 
         self.service_timer = 0
         self.drive_min = 0
@@ -38,18 +46,20 @@ class Vehicle(Agent):
     def step(self):
         if self.completed: return
 
-        # cooling toward setpoint
-        self.trailer_temp += self.sim_p.cool_rate_per_min * (self.setpoint - self.trailer_temp)
+        # Determine ambient temperature for this minute
+        amb = self.temp_model.ambient(self.model.time_minute)
 
         if self.remaining_travel > 0:
             self.remaining_travel -= 1
             self.drive_min += 1
+            # Doors are closed while driving
+            self.temp_model.tick_closed()
         else:
             if self.service_timer > 0:
                 self.service_timer -= 1
                 self.service_min += 1
-                amb = self.ambient(self.model.time_minute)
-                self.trailer_temp += self.sim_p.temp_drift_ambient * (amb - self.trailer_temp)
+                # Doors are open during service: trailer drifts toward ambient
+                self.temp_model.tick_open(amb)
             else:
                 if self.next_ix >= len(self.route):
                     self.completed = True
@@ -62,18 +72,24 @@ class Vehicle(Agent):
                         self.remaining_travel = max(int(t), 1)
                         self.pos = nxt
                         self.next_ix += 1
+                        # Begin driving to next node: doors closed
+                        self.temp_model.tick_closed()
 
         # shelf-life decay for carried items
         for sku, qty in self.inventory.items():
             if qty <= 0: continue
             p = self.sku_params[sku]
-            d = q10_degradation_per_min(p.L_ref_hours, self.trailer_temp, p.T_ref, p.Q10)
+            # Use current trailer temperature from the temp model for Q10 decay
+            d = q10_degradation_per_min(p.L_ref_hours, self.temp_model.temp, p.T_ref, p.Q10)
             self.life_remaining_min[sku] = max(0.0, self.life_remaining_min[sku] - d)
+        # Update trailer_temp attribute for backward compatibility (may be used in KPIs)
+        self.trailer_temp = self.temp_model.temp
 
     def _service_here(self):
         store = self.model.store_by_node.get(self.pos)
         if store and not store.served:
-            self.trailer_temp += self.sim_p.temp_spike_on_open
+            # Apply instantaneous spike when doors open for service
+            self.temp_model.bump_on_open()
             for sku, need in store.sku_demands.items():
                 take = min(self.inventory.get(sku, 0), need)
                 self.inventory[sku] = self.inventory.get(sku, 0) - take

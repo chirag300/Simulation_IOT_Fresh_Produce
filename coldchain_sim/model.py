@@ -42,12 +42,21 @@ class ColdChainModel(Model):
         self.schedule.add(self.vehicle)
 
         # Log remaining life at each delivery
+        # Sum of remaining shelf life across all SKUs for each delivery
         self.rem_life_log = []
+        # Remaining life per SKU snapshot at each delivery
+        self.rem_life_log_per_stop = []
 
+        # Track minute, total time and remaining life per SKU
         self.datacollector = DataCollector(
             model_reporters={
                 "minute": lambda m: m.time_minute,
                 "time_so_far": total_time_minutes,
+                # Current remaining life per SKU (minutes)
+                "life_strawberries": lambda m: m.vehicle.life_remaining_min.get("strawberries", 0.0),
+                "life_romaine":      lambda m: m.vehicle.life_remaining_min.get("romaine", 0.0),
+                "life_blueberries":  lambda m: m.vehicle.life_remaining_min.get("blueberries", 0.0),
+                "life_spinach":      lambda m: m.vehicle.life_remaining_min.get("spinach", 0.0),
             }
         )
 
@@ -60,6 +69,8 @@ class ColdChainModel(Model):
             if post_served[n] and not pre_served[n]:
                 life_sum = sum(self.vehicle.life_remaining_min.values())
                 self.rem_life_log.append(life_sum)
+                # record per-SKU snapshot when a store is newly served
+                self.rem_life_log_per_stop.append(self.vehicle.life_remaining_min.copy())
         self.time_minute += 1
 
     def run_until_done(self, max_minutes=None):
