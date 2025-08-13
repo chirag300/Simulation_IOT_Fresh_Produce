@@ -1,138 +1,148 @@
-````markdown
-# ColdChain IoT Fresh Produce Simulation
+# Project: Simulation of IoT-Enabled Cold Chain for Fresh Produce
 
-A lightweight simulation of a temperature-controlled delivery route for perishable goods. It models a single refrigerated vehicle serving multiple stores while tracking trailer temperature dynamics and the **remaining shelf-life** of each SKU delivered.
+**Status:** Core simulation complete with multiple routing policies, Monte Carlo experiments, and live visualization.
 
-## ✨ Features
-- Synthetic road network with depot + 10 customers (`coldchain_sim.graph`).
-- Multiple routing policies: Nearest Neighbor, 2-Opt local search, and Google OR-Tools TSP.
-- Temperature model with door-open spikes, passive drift, and active cooling.
-- Shelf-life decay using Q10 model per SKU.
-- KPIs recorded each minute and at each delivery.
-- Batch experiments (grid + Monte Carlo) and a **live Matplotlib** visualization.
+## 1. Project Objective
 
-## 📁 Project Structure
+This project simulates the delivery of temperature-sensitive fresh produce using a refrigerated vehicle across multiple stops.  
+It models **temperature dynamics**, **door-opening events**, **passive heat drift**, and **cooling rates**,  
+while tracking **shelf-life decay** using the Q10 model for each SKU.
+
+The system compares multiple routing strategies (Nearest Neighbor, Two-Opt, OR-Tools TSP)  
+and records KPIs like **total time**, **remaining freshness**, and **average shelf-life per unit delivered**.
+
+## 2. Project File Structure
+
 ```
 Simulation_IOT_Fresh_Produce-main/
-- run_once.py
-- coldchain_sim/
-  - __init__.py
-  - agents.py
-  - config.py
-  - graph.py
-  - model.py
-  - objectives.py
-  - run_once.py
-  - shelf_life.py
-  - temps.py
-  - experiments/
-    - grid.py
-    - mc.py
-  - policies/
-    - __init__.py
-    - base.py
-    - heuristics.py
-    - heuristics_fixed.py
-    - ortools_tsp.py
-  - viz/
-    - live_mpl.py
+│
+├── run_once.py                  # Top-level script for single-run simulation
+│
+├── coldchain_sim/
+│   ├── __init__.py
+│   ├── agents.py                 # Mesa agents for vehicle and stops
+│   ├── config.py                 # Simulation parameters and SKU definitions
+│   ├── graph.py                  # Graph generators for symmetric/asymmetric routes
+│   ├── model.py                  # Core Mesa model logic
+│   ├── objectives.py             # KPI calculation functions
+│   ├── run_once.py                # Single-run simulation module
+│   ├── shelf_life.py             # Shelf-life decay calculations (Q10 model)
+│   ├── temps.py                   # Temperature dynamics modeling
+│   │
+│   ├── experiments/
+│   │   ├── grid.py               # Compare policies once and save CSV results
+│   │   └── mc.py                 # Monte Carlo multi-seed experiments
+│   │
+│   ├── policies/
+│   │   ├── __init__.py
+│   │   ├── base.py               # Base class for route policies
+│   │   ├── heuristics.py         # Nearest Neighbor, Two-Opt heuristics
+│   │   ├── heuristics_fixed.py   # Fixed variants of heuristics
+│   │   └── ortools_tsp.py        # OR-Tools TSP policy
+│   │
+│   └── viz/
+│       └── live_mpl.py           # Live matplotlib visualization
 ```
 
-### Key Modules
-- `coldchain_sim/model.py` — Core Mesa model orchestrating time steps, deliveries, temperature, and shelf-life logging.
-- `coldchain_sim/config.py` — Simulation knobs (service time, setpoint, heat dynamics) and default SKUs with Q10.
-- `coldchain_sim/graph.py` — Synthetic depot+customers graph; symmetric or asymmetric travel times.
-- `coldchain_sim/policies/` — Route builders:
-  - `heuristics.py`: `NearestNeighborPolicy`, `TwoOptPolicy`, helper `path_time`.
-  - `ortools_tsp.py`: `ORToolsTSPPolicy` using Google OR-Tools Routing.
-- `coldchain_sim/objectives.py` — KPIs such as total minutes and remaining life.
-- `coldchain_sim/experiments/grid.py` — Compare policies once, write `results.csv`.
-- `coldchain_sim/experiments/mc.py` — Monte-Carlo across many seeds; writes `mc_results.csv`.
-- `coldchain_sim/viz/live_mpl.py` — Live animation of a single run (network, temp trace, KPI).
+## 3. Setup and Usage Instructions
 
-## 🧰 Requirements
+### 3.1. Environment Setup
 
-Python ≥ 3.9. Install dependencies (no GPU needed):
+```bash
+git clone https://github.com/your-org/Simulation_IOT_Fresh_Produce-main.git
+cd Simulation_IOT_Fresh_Produce-main
 
-```
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate         # On Windows: .venv\Scripts\activate
+
 pip install --upgrade pip
 pip install mesa networkx matplotlib pandas ortools
 ```
 
-> If `ortools` fails to build on your platform, try a prebuilt wheel:
-> `pip install --only-binary=:all: ortools`
+> If `ortools` fails to build, use:
+> ```bash
+> pip install --only-binary=:all: ortools
+> ```
 
-## 🚀 Quick Start
+### 3.2. Running a Single Simulation
 
-From the project root (`Simulation_IOT_Fresh_Produce-main`):
-
-### 1) Single run (script)
-Runs a 10-stop instance with OR-Tools TSP and prints the tail of the minute-level dataframe plus summary KPIs.
-
-```
+```bash
 python run_once.py
 # or equivalently
 python -m coldchain_sim.run_once
 ```
 
-### 2) Policy comparison grid
-Runs **Nearest Neighbor**, **Two-Opt**, and **OR-Tools** once each and saves a table to `results.csv`.
+### 3.3. Comparing Policies Once (Grid Run)
 
-```
+```bash
 python -m coldchain_sim.experiments.grid
 ```
 
-### 3) Monte-Carlo (repeatable multi-seed study)
-Evaluate multiple random seeds and write `mc_results.csv`.
+This will save `results.csv` with KPIs for Nearest Neighbor, Two-Opt, and OR-Tools.
 
-```
+### 3.4. Monte Carlo Experiments
+
+```bash
 python -m coldchain_sim.experiments.mc --seeds 20 --start-seed 1 --asymmetric --outfile mc_results.csv
 ```
 
-Arguments:
-- `--seeds` (int, default 20): number of seeds to run.
-- `--start-seed` (int, default 1): first seed.
-- `--asymmetric` (flag): use asymmetric travel times.
-- `--outfile` (str, default `mc_results.csv`).
+**Arguments**:
+- `--seeds` (default: 20) — number of random seeds to run.
+- `--start-seed` (default: 1) — first seed value.
+- `--asymmetric` — use asymmetric travel times.
+- `--outfile` — output CSV file path.
 
-### 4) Live visualization
-Animate one run with a moving vehicle, temperature trace, and KPI panel.
+### 3.5. Live Visualization
 
-```
+```bash
 python -m coldchain_sim.viz.live_mpl
 ```
 
-Use **Ctrl+C** to stop. The script draws a synthetic graph (`seed=7`) and uses the default four SKUs.
+Shows:
+- Left: network with depot (blue), stores (gray→green when served), vehicle (red dot)
+- Top-right: trailer temperature over time
+- Bottom-right: average remaining minutes per unit delivered so far
 
-## 🔧 Customizing the Simulation
+## 4. Routing Policies
 
-- **SKUs & Q10**: edit `coldchain_sim/config.py` → `DEFAULT_SKUS`  
-  (`L_ref_hours`, `T_ref`, `Q10`).
-- **Trailer dynamics**: tweak `SimParams` in `config.py`  
-  (`service_minutes`, `setpoint_c`, `cool_rate_per_min`, `temp_spike_on_open`, `temp_drift_ambient`, `max_minutes`).
-- **Demands & capacity**: see patterns in `run_once.py`, `experiments/grid.py`, `experiments/mc.py`.
-- **Graph**: use symmetric/asymmetric or rescale in `coldchain_sim/graph.py` or the experiment helpers.
+| Policy             | Description                                       | Module                                   |
+|--------------------|---------------------------------------------------|------------------------------------------|
+| `NearestNeighbor`  | Greedy nearest-stop selection                     | `coldchain_sim/policies/heuristics.py`   |
+| `TwoOpt`           | Nearest Neighbor seed + 2-opt improvement         | `coldchain_sim/policies/heuristics.py`   |
+| `ORToolsTSP`       | Optimal route with OR-Tools constraint solver     | `coldchain_sim/policies/ortools_tsp.py`  |
 
-## 📊 Outputs
+## 5. Simulation Parameters
 
-- **Minute-level DataFrame** (`model.datacollector`): time series of temperature and KPIs (printed in `run_once.py` via `df.tail()`).
-- **Per-delivery logs**: `model.rem_life_log_per_stop` — snapshot of quantity-weighted remaining minutes by SKU for each completed stop.
+Defined in `coldchain_sim/config.py`:
+
+- **Service time**: `service_minutes` per stop  
+- **Trailer setpoint**: `setpoint_c`  
+- **Cooling rate**: `cool_rate_per_min`  
+- **Door-open spike**: `temp_spike_on_open`  
+- **Ambient drift**: `temp_drift_ambient`  
+- **Max simulation time**: `max_minutes`  
+
+**SKUs**: `DEFAULT_SKUS` contains each item's reference shelf life (`L_ref_hours`), reference temperature (`T_ref`), and Q10 factor.
+
+## 6. Output & KPIs
+
+- **Minute-level DataFrame** — collected via Mesa's `DataCollector`
+- **Per-delivery log** — remaining life per SKU at each stop
 - **CSV summaries**:
-  - `results.csv` (grid): policy-level KPIs (route preview minutes, total time, total remaining life, units, and averages).
-  - `mc_results.csv` (MC): per-seed results and aggregate stats.
+  - `results.csv` — single-run policy comparison
+  - `mc_results.csv` — Monte Carlo statistics
 
-## 🧪 Reproducibility
+## 7. Next Steps
 
-- Scripts accept or set **random seeds** to make runs repeatable (`--start-seed`, `--seeds` in MC).
-- OR-Tools search is deterministic for fixed seed and model.
+- 📈 Add support for real-world graph data from OpenStreetMap.
+- 🧪 Test sensitivity to parameter variations.
+- ⚡ Parallelize Monte Carlo runs for speed.
+- 📊 Integrate Plotly/Dash dashboards for post-simulation analysis.
 
-## 🐞 Troubleshooting
+## 8. License & Contact
 
-- **`ImportError: ortools`** → reinstall with a wheel: `pip install --only-binary=:all: ortools`  
-- **Matplotlib backend errors** on headless servers → set `MPLBACKEND=Agg` or run non-GUI experiments (`grid.py`, `mc.py`).  
-- **Animation window blank** → ensure you run `python -m coldchain_sim.viz.live_mpl` from the project root so relative imports resolve.
+This is a research-focused simulation framework.  
+Please cite appropriately when using in academic or production settings.
 
----
-````
+**Maintained by:** Your Name / Team  
+For questions, open an issue or contact via email.
