@@ -1,0 +1,3 @@
+policy,time_total,life_total,deliveries,units_delivered,avg_minutes_per_unit,avg_hours_per_unit
+NearestNeighborPolicy,181,3815989.2040178147,10,570,6694.71790178564,111.57863169642732
+ORToolsTSPPolicy,181,3815989.2040178147,10,570,6694.71790178564,111.57863169642732

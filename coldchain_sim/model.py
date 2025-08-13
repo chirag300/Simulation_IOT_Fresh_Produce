@@ -6,6 +6,7 @@ from .agents import DistributionCenter, Store, Vehicle
 from .config import SIM, DEFAULT_SKUS
 from .objectives import total_time_minutes
 
+
 class ColdChainModel(Model):
     def __init__(self, graph, policy, demands, capacity_by_sku,
                  sim_params=SIM, sku_params=DEFAULT_SKUS, seed=123):
@@ -41,18 +42,17 @@ class ColdChainModel(Model):
         self.grid.place_agent(self.vehicle, self.depot)
         self.schedule.add(self.vehicle)
 
-        # Log remaining life at each delivery
-        # Sum of remaining shelf life across all SKUs for each delivery
+        # Logs
+        # Sum of quantity-weighted remaining shelf life across all SKUs per delivery
         self.rem_life_log = []
-        # Remaining life per SKU snapshot at each delivery
+        # Rich per-stop snapshot
         self.rem_life_log_per_stop = []
 
-        # Track minute, total time and remaining life per SKU
+        # Time series (minute-level)
         self.datacollector = DataCollector(
             model_reporters={
                 "minute": lambda m: m.time_minute,
                 "time_so_far": total_time_minutes,
-                # Current remaining life per SKU (minutes)
                 "life_strawberries": lambda m: m.vehicle.life_remaining_min.get("strawberries", 0.0),
                 "life_romaine":      lambda m: m.vehicle.life_remaining_min.get("romaine", 0.0),
                 "life_blueberries":  lambda m: m.vehicle.life_remaining_min.get("blueberries", 0.0),
@@ -61,16 +61,37 @@ class ColdChainModel(Model):
         )
 
     def step(self):
-        pre_served = {n: s.served for n, s in self.store_by_node.items()}
+        # Collect minute-t metrics BEFORE agents act
         self.datacollector.collect(self)
+
+        # Advance all agents; Vehicle may set just_delivered_event
         self.schedule.step()
-        post_served = {n: s.served for n, s in self.store_by_node.items()}
-        for n, s in self.store_by_node.items():
-            if post_served[n] and not pre_served[n]:
-                life_sum = sum(self.vehicle.life_remaining_min.values())
-                self.rem_life_log.append(life_sum)
-                # record per-SKU snapshot when a store is newly served
-                self.rem_life_log_per_stop.append(self.vehicle.life_remaining_min.copy())
+
+        # Log delivery exactly once (if it happened this minute)
+        ev = getattr(self.vehicle, "just_delivered_event", None)
+        if ev:
+            life_at_delivery = ev["life_at_delivery"]   # dict[sku] -> minutes
+            delivered_qty = ev["delivered_qty"]         # dict[sku] -> units
+
+            # Quantity-weighted remaining life (minutes × units)
+            weighted = {
+                sku: life_at_delivery.get(sku, 0.0) * delivered_qty.get(sku, 0.0)
+                for sku in self.sku_params.keys()
+            }
+            total_weighted_minutes = sum(weighted.values())
+
+            self.rem_life_log.append(total_weighted_minutes)
+            self.rem_life_log_per_stop.append({
+                "node": ev["node"],
+                "per_sku_minutes": life_at_delivery,
+                "per_sku_qty": delivered_qty,
+                "per_sku_qty_weighted_minutes": weighted,
+                "total_weighted_minutes": total_weighted_minutes,
+            })
+
+            # consume event
+            self.vehicle.just_delivered_event = None
+
         self.time_minute += 1
 
     def run_until_done(self, max_minutes=None):
